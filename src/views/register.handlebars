@@ -1,24 +1,18 @@
-<div>
-    <h1>Registro de Nuevo Estudiante</h1>
-    <form id="registerForm">
-
-        <label>Nombre</label>
-        <input name="name">
-        <br/>
-        <label>Apellido</label>
-        <input name="lastName">
-        <br/>
-        <label>Email</label>
-        <input name="email">
-        <br/>
-        <label>Edad</label>
-        <input name="age">
-        <br/>
-        <label>Contraseña</label>
-        <input name="password">
-
-        <input type="submit">
+<div class="container mt-5 w-50 d-column">
+    <h1 class="text-center">New user</h1>
+    <form action="/api/register" method="post" class="d-flex justify-content-center formRegis">
+        <label for="">First Name:</label>
+        <input type="text" name="first_name" required>
+        <label for="">Last name:</label>
+        <input type="text" name="last_name" required>
+        <label for="">Email:</label>
+        <input type="text" name="email" required>
+        <label for="">Age:</label>
+        <input type="number" name="age" required>
+        <label for="">Password:</label>
+        <input type="password" name="password" required>
+        <input type="submit" value="Register" class="mt-3">
     </form>
-    <p>¿Ya tienes una cuenta? <a href="/users/login">Ingresa aquí</a></p>
+    <button class="mb-4 btn btn-danger"><a href="/api" class="text-white">Cancel</a></button>
 </div>
-<script src="/js/register.js"></script>
+<script src="/js/index.js"></script>

@@ -1,66 +1,101 @@
-import express from 'express';
-import __dirname from './util.js';
-import handlebars from 'express-handlebars';
-import mongoose from 'mongoose';
-//Cookies si aplica:
-import cookieParser from 'cookie-parser';
-//Passport imports
-import passport from 'passport';
-import initializePassport from './config/passport.config.js';
-import config from './config/config.js';
-import MongoSingleton from './config/mongodb-singleton.js';
-import { addLogger } from './config/logger.js';
+
+const config = require('./config')
+const express = require('express')
+const cors = require("cors")
+const app = express()
+const session = require ('express-session')
+const passport = require('passport')
+const { initializePassport } = require('./config/passport')
+const { login } = require('./controllers/sessions')
+const {addLogger, logger} = require('./config/loggerCustom')
+const MongoStore = require('connect-mongo')
+
+app.use(cors())
+app.use(addLogger)
+app.use(express.json())
+
+app.use(session({
+    store: MongoStore.create({
+        mongoUrl: config.urlMongo
+    }),
+    cookie: { maxAge: 3600000 },
+    // secure: true,
+    secret: config.secretBd,
+    resave: true,
+    saveUninitialized: true
+}));
 
 
-//Routers a importar:
-import studentRouter from './routes/students.router.js'
-import coursesRouter from './routes/courses.router.js'
-import viewsRouter from "./routes/views.router.js";
-import usersViewRouter from './routes/users.view.router.js'
-import jwtRouter from './routes/jwt.router.js'
+initializePassport()
+app.use(passport.initialize())
+app.use(passport.session())
 
-//Declarando Express para usar sus funciones.
-const app = express();
+//Http import
+const http = require('http')
+const server = http.createServer(app)
 
-//Preparar la configuracion del servidor para recibir objetos JSON.
-app.use(express.json());
-app.use(express.urlencoded({extended: true}));
+//Import Routes
+app.use('/api', require('./routes/loggerTest'))
+app.use('/api', require('./routes/products'))
+app.use('/api', require('./routes/carts'))
+app.use('/api', require('./routes/messages'))
+app.use('/api', require('./routes/sessions'))
+app.use('/api', require('./routes/mails'))
+app.use('/api', require('./routes/users'))
+app.get('/', login)
 
-/**
- * Template engine
- */
-app.engine('handlebars',handlebars.engine());
-app.set('views',__dirname+'/views');
-app.set('view engine','handlebars');
-app.use(express.static(__dirname+'/public'))
+// app.use('/images', require('./routes/multer'))
 
-//(Solo si usar Cookies): inicializar el cookie parser.
-app.use(cookieParser("CoderS3cr3tC0d3"));
-//Inicializar passport:
-initializePassport();
-app.use(passport.initialize());
-
-//Declaración de Routers:
-app.use('/',viewsRouter);
-app.use("/api/students", studentRouter);
-app.use("/api/courses", coursesRouter);
-app.use("/users", usersViewRouter);
-app.use("/api/jwt", jwtRouter);
-
-// app.use(addLogger)
+//Import models
+const Message = require('./dao/models/messages')
 
 
-const SERVER_PORT = config.port;
-app.listen(SERVER_PORT, () => {
-    console.log("Servidor escuchando por el puerto: " + SERVER_PORT);
-});
+//Import transformDataProducts
+const {transformDataChat } = require('./utils/transformdata')
 
-const mongoInstance = async () => {
-    try {
-        await MongoSingleton.getInstance();
-    } catch (error) {
-        console.error(error);
-        process.exit();
-    }
-};
-mongoInstance();
+
+//Socket Import
+const { Server } = require('socket.io')
+const io = new Server(server)
+
+//Public
+app.use(express.static("public"))
+
+//View Dependencies
+const handlebars = require('express-handlebars')
+
+
+//Import db
+const MongoManager = require('./dao/mongodb/db.js')
+const {verifyMail} = require('./utils/nodemailer')
+
+const classMongoDb = new MongoManager(config.urlMongo);
+
+//Views
+app.engine('handlebars', handlebars.engine())
+app.set('view engine', 'handlebars')
+app.set('views', __dirname + '/views')
+
+
+//Connection
+io.on('connection', (socket) => {
+    logger.info('New user connected in App')
+    socket.emit('Welcome', 'Hello, welcome new user')
+    socket.on('SendMessage', async (data) => {
+        try {
+            const prueba = await Message.create(data)
+            let messages = await Message.find()
+            const dataMessages = transformDataChat(messages)
+            socket.emit('refreshmessages', dataMessages)
+        } catch (err) {
+            logger.error(err)
+        }
+    })
+})
+
+verifyMail()
+const PORT = config.port || 3000
+server.listen(PORT, () => {
+    logger.http(`Server run on port http://localhost:${config.port}`)
+    classMongoDb.connectionMongoDb()
+})
